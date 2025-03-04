@@ -1,7 +1,7 @@
 ---
 title: "Lab 08 - University of Edinburgh Art Collection"
-author: "Insert your name here"
-date: "Insert date here"
+author: "Cynthia Jiao"
+date: "03/04/2025"
 output: github_document
 ---
 
@@ -12,14 +12,27 @@ First, let's load the necessary packages:
 ```{r load-packages, message = FALSE}
 library(tidyverse) 
 library(skimr)
+library(robotstxt)
+library(rvest)
+library(dplyr)
 ```
 
 Now, load the dataset. If your data isn't ready yet, you can leave `eval = FALSE` for now and update it when needed.  
 
-
-```{r load-data, message = FALSE, eval = FALSE}
+```{r load-data, message = FALSE}
 # Remove eval = FALSE or set it to TRUE once data is ready to be loaded
+
+paths_allowed("https://collections.ed.ac.uk/art)")
+
+
+#### see the web scraping scripts in 01-scrape-page-one.R
+
+#### see turning web scraping script to functions in 02-scrape-page-function.R
+
+#### see using root & sequence to scrape all pages and turning into csv file in 03-scrape-page-many.R
+
 uoe_art <- read_csv("data/uoe-art.csv")
+
 ```
 
 ## Exercise 9
@@ -27,30 +40,98 @@ uoe_art <- read_csv("data/uoe-art.csv")
 Let's start working with the **title** column by separating the title and the date:  
 
 ```{r separate-title-date, error = TRUE}
+
 uoe_art <- uoe_art %>%
-  separate(title, into = c("title", "date"), sep = "\\(") %>%
-  mutate(year = str_remove(date, "\\)") %>% as.numeric()) %>%
-  select(title, artist, year, ___)  # Fill in the missing variable!
+  separate(Title, into = c("Title", "Date"), sep = "\\(") %>%
+  mutate(Year = str_remove(Date, "\\)") %>% as.numeric()) %>%
+  select(Title, Artist, Year, Link) 
+
 ```
-
-Make sure to replace `___` with the appropriate column name.  
-
 
 ## Exercise 10  
 
-*Write your answer here.*  
-
-Feel free to add code chunks as needed. Don't forget to label your code chunk.
-
+The warning message above means that there is no integer number in the (), meaning that there is no available, single number year following the title. We can leave it as is, because r returns a NA instead.
 
 ## Exercise 11  
 
+There are 1580 art work with missing years, 111 art work with missing artist (if "unknown" doesn't count as missing artists). 
 
-*Continue with the same structure as above.*
+```{r exercise-11}
 
-You're doing great—keep going! Follow the same format and add your response below.  
+skim(uoe_art)
+
+```
 
 
-## Additional Exercises  
+## Exercise 11 & 12
 
-Almost there! Keep building on your work and follow the same structure for any remaining exercises. Each exercise builds on the last, so take your time and make sure your code is working as expected.  
+From the graph, the number of artworks rises drastically during 1950s and 1960s. There is almost no artwork listed from 1850 to 1900, which is not normal because there are (and should be) many artworks from 19th century. 
+
+```{r exercise-12}
+
+uoe_art %>%
+  ggplot(aes(x = Year)) +
+  geom_histogram(binwidth = 10, fill = "steelblue", color = "white") +
+  scale_x_continuous(limits = c(1800, max(uoe_art$Year, na.rm = TRUE))) + 
+  labs(title = "Distribution of Artworks by Year", x = "Year", y = "Count") +
+  theme_minimal()
+
+
+```
+
+## Exercise 13
+
+Many artworks between 1850s to 1900s are not captured by our codes because older works can only have estimated year, which could be a range than a precise year (e.g., 1836-1837). In this case, our codes will miss them and return a NA. Therefore, I edited the codes so that it will keep the first 4 digits if there is a range of years inside of the (). After the edits, the new dataset have 1042 missing year. 
+
+```{r excercise-13}
+
+uoe_art_fixed <- uoe_art %>%
+  separate(Title, into = c("Title", "Date"), sep = "\\(") %>%
+  mutate(Year = str_extract(Date, "\\d{4}") %>% as.numeric()) %>%  # extracts the first 4-digit number (year)
+  select(Title, Artist, Year, Link)
+
+skim(uoe_art_fixed)
+
+## visualize again
+
+uoe_art_fixed %>%
+  ggplot(aes(x = Year)) +
+  geom_histogram(binwidth = 10, fill = "steelblue", color = "white") +
+  scale_x_continuous(limits = c(1800, 2020)) + 
+  labs(title = "Distribution of Artworks by Year", x = "Year", y = "Count") +
+  theme_minimal()
+
+
+```
+
+## Exercise 14
+
+I counted the number of pieces by artists, and it seems that Unknown is the most featured artist (373 pieces without an known author). I am not surprised because there must be a lot of artworks that were sold and exchanged over the course of 200 years, and it is common that the museum collects but doesn't know the exact artist of each work. 
+
+```{r excercise-14}
+
+artist_counts <- uoe_art %>%
+  group_by(Artist) %>%  
+  summarise(Count = n()) %>%  
+  arrange(desc(Count))
+
+# View the result
+print(artist_counts)
+
+
+```
+
+## Exercise 15
+
+I tried to detect the word "child" using the same code, but nothing shows up, which could be that all titles are in title case and all the "C"s in "child" is capitalized. So I switched to detect "Child", and it shows that there are 11 art pieces have the word “child” in their title.
+
+```{r excercise-15}
+
+child_counts <- uoe_art_fixed %>%
+  filter(str_detect(uoe_art_fixed$Title, "Child")) 
+
+print(child_counts)
+
+
+```
+
